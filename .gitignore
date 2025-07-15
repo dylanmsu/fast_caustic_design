@@ -42,3 +42,6 @@ data/*
 *.exe
 *.out
 *.app
+
+# Editor Files
+.idea/
