@@ -63,6 +63,22 @@ endif()
 
 find_package(Ceres REQUIRED)
 
+# ImGui and OpenGL for GUI support
+find_package(OpenGL REQUIRED)
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
+)
+add_library(imgui ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+target_link_libraries(imgui PUBLIC OpenGL::GL)
+
 ## FILES ##########################################################################
 set(SURFACE_MESH_SRC_FILES
     otlib/surface_mesh/Surface_mesh.cpp
@@ -120,6 +136,17 @@ set(OTAPPUTILS_SRC_FILES
     apps/normal_integration/mesh.cpp
 )
 
+# GUI source files
+set(GUI_SRC_FILES
+    apps/gui/caustic_gui.cpp
+    apps/gui/file_dialog.cpp
+)
+
+set(GUI_HEADER_FILES
+    apps/gui/caustic_gui.h
+    apps/gui/file_dialog.h
+)
+
 set(OTAPPUTILS_HEADER_FILES
     apps/common/image_utils.h
     apps/common/inputparser.h
@@ -135,7 +162,7 @@ add_library(otapputils ${OTAPPUTILS_SRC_FILES})
 
 
 
-add_executable(caustic_design apps/caustic_design.cpp)
+add_executable(caustic_design apps/caustic_design.cpp ${GUI_SRC_FILES})
 
 target_link_libraries(caustic_design PRIVATE PNG::PNG)
 
@@ -152,4 +179,8 @@ target_link_libraries(caustic_design
         otlib
         ${ALLLIBS}
         Ceres::ceres
+        imgui
+        OpenGL::GL
+        comctl32
+        comdlg32
 )

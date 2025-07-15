@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include "common/otsolver_options.h"
+#include "common/cli_options.h"
 #include "utils/eigen_addons.h"
 #include "common/image_utils.h"
 #include "common/generic_tasks.h"
@@ -27,6 +28,11 @@
 
 #include "normal_integration/normal_integration.h"
 #include "normal_integration/mesh.h"
+
+// GUI support
+#ifdef _WIN32
+extern int launchGUI();
+#endif
 
 using namespace Eigen;
 using namespace surface_mesh;
@@ -124,96 +130,7 @@ void output_usage()
   std::cout << std::endl;
 }
 
-struct CLIopts : CLI_OTSolverOptions
-{
-  std::string filename_src;
-  bool uniform_src;
 
-  std::string filename_trg;
-
-  std::string output_path;
-
-  bool inv_mode;
-
-  uint resolution;
-
-  double focal_l;
-  double thickness;
-  double mesh_width;
-
-  void set_default()
-  {
-    filename_src = "";
-    uniform_src = false;
-    filename_trg = "";
-
-    output_path = "./output.obj";
-
-    resolution = 100;
-
-    focal_l = 1.0;
-    thickness = 0.2;
-    mesh_width = 1.0;
-
-    CLI_OTSolverOptions::set_default();
-  }
-
-  bool load(const InputParser &args)
-  {
-    set_default();
-
-    CLI_OTSolverOptions::load(args);
-
-    std::vector<std::string> value;
-
-    if(args.getCmdOption("-in_src", value))
-      filename_src = value[0];
-    else
-      uniform_src = true;
-
-    if(args.getCmdOption("-in_trg", value))
-      filename_trg = value[0];
-    else
-      return false;
-
-    if(args.getCmdOption("-output", value))
-      output_path = value[0];
-
-    if(args.getCmdOption("-res", value))
-      resolution = std::atoi(value[0].c_str());
-
-    if(args.getCmdOption("-focal_l", value))
-      focal_l = std::atof(value[0].c_str());
-
-    if(args.getCmdOption("-thickness", value))
-      thickness = std::atof(value[0].c_str());
-
-    if(args.getCmdOption("-mesh_width", value))
-      mesh_width = std::atof(value[0].c_str());
-
-    return true;
-  }
-
-  // Helper function to get the final output file path
-  std::string get_output_file_path() const
-  {
-    // Check if output_path ends with .obj (is a full file path)
-    if (output_path.length() >= 4 &&
-        output_path.substr(output_path.length() - 4) == ".obj") {
-      return output_path;
-    }
-
-    // Otherwise treat as directory path
-    std::string dir_path = output_path;
-
-    // Ensure directory path ends with separator
-    if (!dir_path.empty() && dir_path.back() != '/' && dir_path.back() != '\\') {
-      dir_path += "/";
-    }
-
-    return dir_path + "output.obj";
-  }
-};
 
 template<typename T,typename S>
 T lerp(S u, const T& a0, const T& a1)
@@ -775,30 +692,13 @@ Eigen::MatrixXd scaleAndTranslate(const Eigen::MatrixXd& mat, double newMin, dou
     return scaled;
 }
 
-int main(int argc, char** argv)
-{
-  setlocale(LC_ALL,"C");
-
-  // parse comand line options
-  InputParser input(argc, argv);
-
+// Extracted processing function for use by both CLI and GUI
+int processCausticGeneration(CLIopts opts) {
   MatrixXd density_src;
   MatrixXd density_trg;
 
   std::vector<Eigen::Vector2d> vertex_positions;
   normal_integration normal_int;
-
-  if(input.cmdOptionExists("-help") || input.cmdOptionExists("-h")){
-    output_usage();
-    return 0;
-  }
-
-  CLIopts opts;
-  if(!opts.load(input)){
-    std::cerr << "invalid input" << std::endl;
-    output_usage();
-    return EXIT_FAILURE;
-  }
 
   if (!opts.uniform_src) {
     // load source image. TODO: assume uniform density if no image is loaded
@@ -926,4 +826,36 @@ int main(int argc, char** argv)
   std::string final_output_path = opts.get_output_file_path();
   mesh.save_solid_obj_source(opts.thickness, final_output_path);
   std::cout << "\033[1;32m" << "Exported 3d model as " << final_output_path << " relative to this executable." << "\033[0m" << std::endl;
+
+  return 0;
+}
+
+int main(int argc, char** argv)
+{
+  setlocale(LC_ALL,"C");
+
+  // If no arguments provided, launch GUI (Windows only for now)
+#ifdef _WIN32
+  if (argc == 1) {
+    return launchGUI();
+  }
+#endif
+
+  // parse command line options
+  InputParser input(argc, argv);
+
+  if(input.cmdOptionExists("-help") || input.cmdOptionExists("-h")){
+    output_usage();
+    return 0;
+  }
+
+  CLIopts opts;
+  if(!opts.load(input)){
+    std::cerr << "invalid input" << std::endl;
+    output_usage();
+    return EXIT_FAILURE;
+  }
+
+  // Call the extracted processing function
+  return processCausticGeneration(opts);
 }
