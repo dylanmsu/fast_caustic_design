@@ -15,6 +15,26 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(USE_CIMAGE true)
 
+# Option to build a single executable (static linking)
+option(BUILD_SINGLE_EXECUTABLE "Build a single, self-contained executable" ON)
+
+# Force static linking for single executable builds
+if(BUILD_SINGLE_EXECUTABLE)
+    message(STATUS "Building single executable with static linking")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+
+    # Force static runtime on Windows
+    if(MSVC)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        # Additional static linking flags
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:MSVCRT")
+        set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG")
+    endif()
+
+    # Prefer static libraries
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a)
+endif()
+
 # Force MSVC to use the static runtime (/MT or /MTd)
 if(MSVC)
   foreach(flag_var CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
@@ -75,7 +95,14 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
     ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
 )
-add_library(imgui ${IMGUI_SOURCES})
+
+# Create ImGui as static library for single executable builds
+if(BUILD_SINGLE_EXECUTABLE)
+    add_library(imgui STATIC ${IMGUI_SOURCES})
+else()
+    add_library(imgui ${IMGUI_SOURCES})
+endif()
+
 target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 target_link_libraries(imgui PUBLIC OpenGL::GL)
 
@@ -123,7 +150,12 @@ else()
     add_definitions(-D_USE_MATH_DEFINES)
 endif()
 
-add_library(otlib ${SURFACE_MESH_SRC_FILES} ${OTSOLVER_SRC_FILES})
+# Create otlib as static for single executable builds
+if(BUILD_SINGLE_EXECUTABLE)
+    add_library(otlib STATIC ${SURFACE_MESH_SRC_FILES} ${OTSOLVER_SRC_FILES})
+else()
+    add_library(otlib ${SURFACE_MESH_SRC_FILES} ${OTSOLVER_SRC_FILES})
+endif()
 
 
 
@@ -158,7 +190,12 @@ set(OTAPPUTILS_HEADER_FILES
     apps/normal_integration/costFunctor.h
 )
 
-add_library(otapputils ${OTAPPUTILS_SRC_FILES})
+# Create otapputils as static for single executable builds
+if(BUILD_SINGLE_EXECUTABLE)
+    add_library(otapputils STATIC ${OTAPPUTILS_SRC_FILES})
+else()
+    add_library(otapputils ${OTAPPUTILS_SRC_FILES})
+endif()
 
 
 
@@ -184,3 +221,62 @@ target_link_libraries(caustic_design
         comctl32
         comdlg32
 )
+
+# Additional configuration for single executable builds
+if(BUILD_SINGLE_EXECUTABLE)
+    # Set static linking flags for Windows
+    if(WIN32)
+        # Link statically against the C++ runtime
+        set_target_properties(caustic_design PROPERTIES
+            LINK_FLAGS "/NODEFAULTLIB:MSVCRT /NODEFAULTLIB:MSVCRTD"
+        )
+
+        # Add additional system libraries that might be needed
+        target_link_libraries(caustic_design PRIVATE
+            kernel32 user32 gdi32 winspool shell32 ole32 oleaut32 uuid
+            comdlg32 advapi32 ws2_32 winmm imm32 version
+        )
+    endif()
+
+    # Strip debug symbols in release builds to reduce size
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        if(WIN32)
+            set_target_properties(caustic_design PROPERTIES
+                LINK_FLAGS_RELEASE "/LTCG /OPT:REF /OPT:ICF"
+            )
+        endif()
+    endif()
+
+    # Set executable properties
+    set_target_properties(caustic_design PROPERTIES
+        OUTPUT_NAME "caustic_design_standalone"
+    )
+
+    message(STATUS "Single executable will be named: caustic_design_standalone.exe")
+endif()
+
+# Add custom target for building single executable
+if(BUILD_SINGLE_EXECUTABLE)
+    add_custom_target(single_exe
+        DEPENDS caustic_design
+        COMMENT "Building single executable..."
+    )
+
+    # Add post-build step to show completion message
+    add_custom_command(TARGET caustic_design POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Single executable created:"
+        COMMAND ${CMAKE_COMMAND} -E echo "  Location: $<TARGET_FILE:caustic_design>"
+        COMMENT "Single executable build complete"
+    )
+endif()
+
+# Print build configuration summary
+message(STATUS "=== Build Configuration ===")
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Single Executable: ${BUILD_SINGLE_EXECUTABLE}")
+if(BUILD_SINGLE_EXECUTABLE)
+    message(STATUS "Output: caustic_design_standalone.exe (self-contained)")
+else()
+    message(STATUS "Output: caustic_design.exe (requires DLLs)")
+endif()
+message(STATUS "==========================")
