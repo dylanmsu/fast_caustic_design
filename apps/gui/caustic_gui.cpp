@@ -337,24 +337,89 @@ void CausticGUI::renderAdvancedOptions() {
             ImGui::SetTooltip("Optimization method\nConjugate Jacobian is recommended for better performance");
         }
 
-        // Max iterations
-        if (ImGui::InputInt("Max Iterations", &max_iterations)) {
+        ImGui::Separator();
+        ImGui::Text("Convergence Parameters:");
+
+        // Max iterations with slider and input
+        if (ImGui::SliderInt("Max Iterations", &max_iterations, 10, 5000)) {
+            updateCommandLinePreview();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Maximum number of solver iterations\nHigher values allow more time to converge but take longer\nTypical range: 100-2000");
+        }
+
+        // Advanced input for max iterations
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(80);
+        if (ImGui::InputInt("##max_iter_input", &max_iterations)) {
             if (max_iterations < 1) max_iterations = 1;
+            if (max_iterations > 50000) max_iterations = 50000;
             updateCommandLinePreview();
         }
 
-        // Threshold
+        // Convergence threshold with scientific notation
         if (ImGui::InputDouble("Convergence Threshold", &threshold, 0.0, 0.0, "%.2e")) {
-            if (threshold <= 0) threshold = 1e-7;
+            if (threshold <= 0) threshold = 1e-12;
+            if (threshold > 1.0) threshold = 1.0;
             updateCommandLinePreview();
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Stopping criterion for optimization\nLower values = more precise but slower convergence\nTypical range: 1e-12 to 1e-3\nDefault: 1e-7");
+        }
+
+        // Quick threshold presets
+        ImGui::SameLine();
+        if (ImGui::Button("Quick##threshold")) {
+            ImGui::OpenPopup("threshold_presets");
+        }
+        if (ImGui::BeginPopup("threshold_presets")) {
+            if (ImGui::MenuItem("Fast (1e-4)")) { threshold = 1e-4; updateCommandLinePreview(); }
+            if (ImGui::MenuItem("Normal (1e-7)")) { threshold = 1e-7; updateCommandLinePreview(); }
+            if (ImGui::MenuItem("Precise (1e-10)")) { threshold = 1e-10; updateCommandLinePreview(); }
+            if (ImGui::MenuItem("Very Precise (1e-12)")) { threshold = 1e-12; updateCommandLinePreview(); }
+            ImGui::EndPopup();
+        }
+
+        // Max ratio parameter
+        ImGui::Separator();
+        ImGui::Text("Density Control:");
+
+        // Checkbox for unlimited ratio
+        bool unlimited_ratio = (max_ratio >= 1e15);
+        if (ImGui::Checkbox("Unlimited Density Ratio", &unlimited_ratio)) {
+            if (unlimited_ratio) {
+                max_ratio = (std::numeric_limits<double>::max)();
+            } else {
+                max_ratio = 1000.0;
+            }
+            updateCommandLinePreview();
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Controls maximum ratio between brightest and darkest regions\nUnlimited allows extreme contrasts but may cause numerical issues");
+        }
+
+        // Ratio slider (only if not unlimited)
+        if (!unlimited_ratio) {
+            // Use SliderFloat for compatibility, convert to double
+            float ratio_float = static_cast<float>(max_ratio);
+            if (ImGui::SliderFloat("Max Density Ratio", &ratio_float, 1.0f, 10000.0f, "%.1f", ImGuiSliderFlags_Logarithmic)) {
+                max_ratio = static_cast<double>(ratio_float);
+                updateCommandLinePreview();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Maximum ratio between brightest and darkest regions\nHigher values preserve more contrast but may be harder to solve\nTypical range: 10-1000");
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Output Control:");
 
         // Verbose level
         if (ImGui::SliderInt("Verbose Level", &verbose_level, 0, 10)) {
             updateCommandLinePreview();
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("0=silent, 1=normal, 10=very detailed");
+            ImGui::SetTooltip("Amount of diagnostic output during processing\n0=silent, 1=normal, 5=detailed, 10=very detailed");
         }
     }
 }
@@ -452,9 +517,21 @@ void CausticGUI::updateCommandLinePreview() {
     cmd << " -thickness " << thickness;
     cmd << " -mesh_width " << mesh_width;
     cmd << " -beta " << (beta_method == 0 ? "0" : "cj");
-    cmd << " -itr " << max_iterations;
-    cmd << " -th " << threshold;
-    cmd << " -v " << verbose_level;
+
+    // Advanced solver options (only include if different from defaults)
+    if (max_iterations != 1000) {
+        cmd << " -itr " << max_iterations;
+    }
+    if (threshold != 1e-7) {
+        cmd << " -th " << std::scientific << threshold;
+        cmd.unsetf(std::ios::scientific); // Reset to default formatting
+    }
+    if (max_ratio < 1e15) { // Only include if not unlimited
+        cmd << " -ratio " << max_ratio;
+    }
+    if (verbose_level != 1) {
+        cmd << " -v " << verbose_level;
+    }
 
     command_line_preview = cmd.str();
 }
@@ -492,6 +569,26 @@ bool CausticGUI::validateInputs() {
 
     if (mesh_width <= 0) {
         error_message = "Mesh width must be positive";
+        return false;
+    }
+
+    if (max_iterations < 1 || max_iterations > 50000) {
+        error_message = "Max iterations must be between 1 and 50000";
+        return false;
+    }
+
+    if (threshold <= 0 || threshold > 1.0) {
+        error_message = "Convergence threshold must be between 0 and 1.0";
+        return false;
+    }
+
+    if (max_ratio < 1.0) {
+        error_message = "Max density ratio must be at least 1.0";
+        return false;
+    }
+
+    if (verbose_level < 0 || verbose_level > 10) {
+        error_message = "Verbose level must be between 0 and 10";
         return false;
     }
 
