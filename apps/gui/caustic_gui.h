@@ -54,6 +54,7 @@ private:
     float focal_length;
     float thickness;
     float mesh_width;
+    double refractive_index;
     int beta_method;
     int max_iterations;
     double threshold;

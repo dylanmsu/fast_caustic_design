@@ -28,6 +28,7 @@ struct CLIopts : CLI_OTSolverOptions
   double focal_l;
   double thickness;
   double mesh_width;
+  double refractive_index;
 
   void set_default()
   {
@@ -42,6 +43,7 @@ struct CLIopts : CLI_OTSolverOptions
     focal_l = 1.0;
     thickness = 0.2;
     mesh_width = 1.0;
+    refractive_index = 1.55;
 
     CLI_OTSolverOptions::set_default();
   }
@@ -78,6 +80,9 @@ struct CLIopts : CLI_OTSolverOptions
 
     if(args.getCmdOption("-mesh_width", value))
       mesh_width = std::atof(value[0].c_str());
+
+    if(args.getCmdOption("-refractive_index", value) || args.getCmdOption("-ri", value))
+      refractive_index = std::atof(value[0].c_str());
 
     return true;
   }

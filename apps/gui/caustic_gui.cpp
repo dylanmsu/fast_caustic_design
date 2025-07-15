@@ -65,6 +65,7 @@ CausticGUI::CausticGUI()
     , focal_length(1.0f)
     , thickness(0.2f)
     , mesh_width(1.0f)
+    , refractive_index(1.55)
     , beta_method(1)  // 0=zero, 1=cj
     , max_iterations(1000)
     , threshold(1e-7)
@@ -353,6 +354,57 @@ void CausticGUI::renderParameters() {
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Physical width and height of the lens");
     }
+
+    // Refractive index with inline input and preset button
+    ImGui::Text("Refractive Index");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(120);
+    if (ImGui::InputDouble("##refractive_index", &refractive_index, 0.0, 0.0, "%.3f")) {
+        if (refractive_index < 1.0) refractive_index = 1.0;
+        if (refractive_index > 3.0) refractive_index = 3.0;
+        updateCommandLinePreview();
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Refractive index of the lens material\nControls how light bends through the lens\nHigher values = stronger light bending\nTypical range: 1.0 to 3.0");
+    }
+
+    // Quick refractive index presets with dynamic button text
+    ImGui::SameLine();
+
+    // Determine current material name for button text
+    std::string buttonText = "Material Presets";
+    if (std::abs(refractive_index - 1.45) < 0.001) buttonText = "PLA (1.45)";
+    else if (std::abs(refractive_index - 1.49) < 0.001) buttonText = "Acrylic (1.49)";
+    else if (std::abs(refractive_index - 1.50) < 0.001) buttonText = "Glass (1.50)";
+    else if (std::abs(refractive_index - 1.51) < 0.001) buttonText = "Formlabs V4 (1.51)";
+    else if (std::abs(refractive_index - 1.52) < 0.001) buttonText = "Siraya Tech (1.52)";
+    else if (std::abs(refractive_index - 1.55) < 0.001) buttonText = "Default (1.55)";
+    else {
+        std::stringstream ss;
+        ss << "Custom (" << std::fixed << std::setprecision(3) << refractive_index << ")";
+        buttonText = ss.str();
+    }
+
+    if (ImGui::Button(buttonText.c_str())) {
+        ImGui::OpenPopup("refractive_presets");
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Click to select from common material presets");
+    }
+
+    if (ImGui::BeginPopup("refractive_presets")) {
+        ImGui::Text("Common Materials:");
+        ImGui::Separator();
+        if (ImGui::MenuItem("PLA 3D Print (1.45)")) { refractive_index = 1.45; updateCommandLinePreview(); }
+        if (ImGui::MenuItem("Acrylic (1.49)")) { refractive_index = 1.49; updateCommandLinePreview(); }
+        if (ImGui::MenuItem("Glass (1.50)")) { refractive_index = 1.50; updateCommandLinePreview(); }
+        if (ImGui::MenuItem("Formlabs Clear V4 (1.51)")) { refractive_index = 1.51; updateCommandLinePreview(); }
+        if (ImGui::MenuItem("Siraya Tech Ultra Clear (1.52)")) { refractive_index = 1.52; updateCommandLinePreview(); }
+        if (ImGui::MenuItem("Anycubic High Clear (1.50)")) { refractive_index = 1.50; updateCommandLinePreview(); }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Default (1.55)")) { refractive_index = 1.55; updateCommandLinePreview(); }
+        ImGui::EndPopup();
+    }
 }
 
 void CausticGUI::renderAdvancedOptions() {
@@ -388,8 +440,11 @@ void CausticGUI::renderAdvancedOptions() {
             updateCommandLinePreview();
         }
 
-        // Convergence threshold with scientific notation
-        if (ImGui::InputDouble("Convergence Threshold", &threshold, 0.0, 0.0, "%.2e")) {
+        // Convergence threshold with inline input and preset button
+        ImGui::Text("Convergence Threshold");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(120);
+        if (ImGui::InputDouble("##threshold", &threshold, 0.0, 0.0, "%.2e")) {
             if (threshold <= 0) threshold = 1e-12;
             if (threshold > 1.0) threshold = 1.0;
             updateCommandLinePreview();
@@ -398,12 +453,31 @@ void CausticGUI::renderAdvancedOptions() {
             ImGui::SetTooltip("Stopping criterion for optimization\nLower values = more precise but slower convergence\nTypical range: 1e-12 to 1e-3\nDefault: 1e-7");
         }
 
-        // Quick threshold presets
+        // Quick threshold presets with dynamic button text
         ImGui::SameLine();
-        if (ImGui::Button("Quick##threshold")) {
+
+        // Determine current threshold preset for button text
+        std::string thresholdButtonText = "Precision Presets";
+        if (std::abs(threshold - 1e-4) < 1e-5) thresholdButtonText = "Fast (1e-4)";
+        else if (std::abs(threshold - 1e-7) < 1e-8) thresholdButtonText = "Normal (1e-7)";
+        else if (std::abs(threshold - 1e-10) < 1e-11) thresholdButtonText = "Precise (1e-10)";
+        else if (std::abs(threshold - 1e-12) < 1e-13) thresholdButtonText = "Very Precise (1e-12)";
+        else {
+            std::stringstream ss;
+            ss << "Custom (" << std::scientific << std::setprecision(0) << threshold << ")";
+            thresholdButtonText = ss.str();
+        }
+
+        if (ImGui::Button(thresholdButtonText.c_str())) {
             ImGui::OpenPopup("threshold_presets");
         }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Click to select from common precision presets");
+        }
+
         if (ImGui::BeginPopup("threshold_presets")) {
+            ImGui::Text("Convergence Precision:");
+            ImGui::Separator();
             if (ImGui::MenuItem("Fast (1e-4)")) { threshold = 1e-4; updateCommandLinePreview(); }
             if (ImGui::MenuItem("Normal (1e-7)")) { threshold = 1e-7; updateCommandLinePreview(); }
             if (ImGui::MenuItem("Precise (1e-10)")) { threshold = 1e-10; updateCommandLinePreview(); }
@@ -547,6 +621,12 @@ void CausticGUI::updateCommandLinePreview() {
     cmd << " -focal_l " << focal_length;
     cmd << " -thickness " << thickness;
     cmd << " -mesh_width " << mesh_width;
+
+    // Only include refractive index if different from default
+    if (refractive_index != 1.55) {
+        cmd << " -ri " << std::fixed << std::setprecision(3) << refractive_index;
+    }
+
     cmd << " -beta " << (beta_method == 0 ? "0" : "cj");
 
     // Advanced solver options (only include if different from defaults)
@@ -603,6 +683,11 @@ bool CausticGUI::validateInputs() {
         return false;
     }
 
+    if (refractive_index < 1.0 || refractive_index > 3.0) {
+        error_message = "Refractive index must be between 1.0 and 3.0";
+        return false;
+    }
+
     if (max_iterations < 1 || max_iterations > 50000) {
         error_message = "Max iterations must be between 1 and 50000";
         return false;
@@ -634,6 +719,7 @@ void CausticGUI::resetToDefaults() {
     focal_length = 1.0f;
     thickness = 0.2f;
     mesh_width = 1.0f;
+    refractive_index = 1.55;
     beta_method = 1;
     max_iterations = 1000;
     threshold = 1e-7;
@@ -691,6 +777,11 @@ std::string CausticGUI::generateParameterFilename(const std::string& baseFilenam
         paramStr << "--mesh_width-" << std::fixed << std::setprecision(1) << mesh_width;
     }
 
+    // Add refractive index if different from default
+    if (refractive_index != 1.55) {
+        paramStr << "--ri-" << std::fixed << std::setprecision(2) << refractive_index;
+    }
+
     // Add beta method
     paramStr << "--beta-" << (beta_method == 0 ? "0" : "cj");
 
@@ -730,6 +821,7 @@ CLIopts CausticGUI::createCLIOptsFromGUI() {
     opts.focal_l = static_cast<double>(focal_length);
     opts.thickness = static_cast<double>(thickness);
     opts.mesh_width = static_cast<double>(mesh_width);
+    opts.refractive_index = refractive_index;
 
     // Solver options
     opts.solver_opt.beta = (beta_method == 0) ? otmap::BetaOpt::Zero : otmap::BetaOpt::ConjugateJacobian;
