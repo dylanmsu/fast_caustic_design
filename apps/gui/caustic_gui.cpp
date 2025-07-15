@@ -20,6 +20,8 @@
 #include <filesystem>
 #include <limits>
 #include <cstring>
+#include <iomanip>
+#include <cmath>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -74,6 +76,7 @@ CausticGUI::CausticGUI()
     , processing_status("Ready")
     , show_advanced_options(false)
     , show_command_preview(true)
+    , auto_generate_filename(false)
 #ifdef _WIN32
     , hwnd(nullptr)
     , hdc(nullptr)
@@ -284,6 +287,34 @@ void CausticGUI::renderFileSelection() {
     if (ImGui::InputText("##output_path", output_buffer, sizeof(output_buffer))) {
         output_path = std::string(output_buffer);
         updateCommandLinePreview();
+    }
+
+    // Auto-generate filename checkbox
+    ImGui::Spacing();
+    if (ImGui::Checkbox("Auto-generate filename from parameters", &auto_generate_filename)) {
+        updateCommandLinePreview();
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("When enabled, adds parameter values to the filename\nExample: res-100--focal_l-1.0--thickness-0.2_output.obj\nHelps track different parameter combinations");
+    }
+
+    // Show preview of generated filename if enabled
+    if (auto_generate_filename) {
+        std::string previewFilename = generateParameterFilename(output_path);
+        ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f), "Generated filename:");
+        ImGui::SameLine();
+
+        // Show just the filename part if it's too long
+        std::filesystem::path previewPath(previewFilename);
+        std::string displayName = previewPath.filename().string();
+        if (displayName.length() > 60) {
+            displayName = displayName.substr(0, 57) + "...";
+        }
+
+        ImGui::TextWrapped("%s", displayName.c_str());
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Full path: %s", previewFilename.c_str());
+        }
     }
 }
 
@@ -612,8 +643,79 @@ void CausticGUI::resetToDefaults() {
     processing_complete = false;
     processing_error = false;
     error_message.clear();
+    auto_generate_filename = false;
 
     updateCommandLinePreview();
+}
+
+std::string CausticGUI::generateParameterFilename(const std::string& baseFilename) {
+    if (!auto_generate_filename) {
+        return baseFilename;
+    }
+
+    // Extract directory and base name from the original filename
+    std::filesystem::path originalPath(baseFilename);
+    std::string directory = originalPath.parent_path().string();
+    std::string baseName = originalPath.stem().string();
+    std::string extension = originalPath.extension().string();
+
+    // If no extension, assume .obj
+    if (extension.empty()) {
+        extension = ".obj";
+    }
+
+    // Build parameter string
+    std::stringstream paramStr;
+
+    // Add resolution
+    paramStr << "res-" << resolution;
+
+    // Add focal length (format to avoid decimals when possible)
+    if (focal_length == static_cast<int>(focal_length)) {
+        paramStr << "--focal_l-" << static_cast<int>(focal_length);
+    } else {
+        paramStr << "--focal_l-" << std::fixed << std::setprecision(1) << focal_length;
+    }
+
+    // Add thickness
+    if (thickness == static_cast<int>(thickness)) {
+        paramStr << "--thickness-" << static_cast<int>(thickness);
+    } else {
+        paramStr << "--thickness-" << std::fixed << std::setprecision(1) << thickness;
+    }
+
+    // Add mesh width
+    if (mesh_width == static_cast<int>(mesh_width)) {
+        paramStr << "--mesh_width-" << static_cast<int>(mesh_width);
+    } else {
+        paramStr << "--mesh_width-" << std::fixed << std::setprecision(1) << mesh_width;
+    }
+
+    // Add beta method
+    paramStr << "--beta-" << (beta_method == 0 ? "0" : "cj");
+
+    // Add advanced parameters if they differ from defaults
+    if (max_iterations != 1000) {
+        paramStr << "--itr-" << max_iterations;
+    }
+
+    if (threshold != 1e-7) {
+        paramStr << "--th-1e" << static_cast<int>(std::log10(threshold));
+    }
+
+    if (max_ratio < 1e15) {
+        paramStr << "--ratio-" << static_cast<int>(max_ratio);
+    }
+
+    // Construct final filename
+    std::string finalFilename;
+    if (!directory.empty()) {
+        finalFilename = directory + "/" + paramStr.str() + "_" + baseName + extension;
+    } else {
+        finalFilename = paramStr.str() + "_" + baseName + extension;
+    }
+
+    return finalFilename;
 }
 
 CLIopts CausticGUI::createCLIOptsFromGUI() {
@@ -623,7 +725,7 @@ CLIopts CausticGUI::createCLIOptsFromGUI() {
     opts.filename_trg = target_image_path;
     opts.filename_src = source_image_path;
     opts.uniform_src = source_image_path.empty();
-    opts.output_path = output_path;
+    opts.output_path = generateParameterFilename(output_path);
     opts.resolution = static_cast<unsigned int>(resolution);
     opts.focal_l = static_cast<double>(focal_length);
     opts.thickness = static_cast<double>(thickness);

@@ -72,6 +72,7 @@ private:
     // GUI window state
     bool show_advanced_options;
     bool show_command_preview;
+    bool auto_generate_filename;
     std::string command_line_preview;
 
     // Private methods
@@ -86,6 +87,7 @@ private:
     void updateCommandLinePreview();
     bool validateInputs();
     void resetToDefaults();
+    std::string generateParameterFilename(const std::string& baseFilename);
     
     CLIopts createCLIOptsFromGUI();
     void startProcessing();
