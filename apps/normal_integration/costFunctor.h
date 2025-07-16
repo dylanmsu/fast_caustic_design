@@ -9,7 +9,6 @@
 #define EDIR_WEIGHT 5.0
 #define EREG_WEIGHT 1.0
 
-
 /******************************************************/
 /*************** Ceres-Helper-Methods *****************/
 /******************************************************/
@@ -25,7 +24,6 @@ template<typename T> T evaluateInt(const T* const vertex, const T** neighbors, u
 template<typename T> T evaluateInt2(const T* const vertex, const T** neighbors, uint nNeighbors, const vector<int> & neighborMap, const std::vector<double> &desiredNormal, T* result);
 template<typename T> void calcVertexNormal(const T* vertex, std::vector<T> &result, const T** neighbors, const std::vector<int>& neighborMap);
 //template<typename T> T evaluateReg(const T** const allVertices, const float* L, uint nVertices);
-
 
 /******************************************************/
 /*************** Ceres-Helper-Methods *****************/

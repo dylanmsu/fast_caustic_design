@@ -78,6 +78,7 @@ CausticGUI::CausticGUI()
     , show_advanced_options(false)
     , show_command_preview(true)
     , auto_generate_filename(false)
+    , should_quit(false)
 #ifdef _WIN32
     , hwnd(nullptr)
     , hdc(nullptr)
@@ -165,7 +166,12 @@ void CausticGUI::renderMainWindow() {
                 }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Exit")) {
-                    PostQuitMessage(0);
+                    #ifdef _WIN32
+                        PostQuitMessage(0);
+                    #else
+                        // For Linux: set a flag to exit main loop or close the window
+                        should_quit = true;
+                    #endif
                 }
                 ImGui::EndMenu();
             }
@@ -282,7 +288,7 @@ void CausticGUI::renderFileSelection() {
 
     // Use char buffer for ImGui compatibility
     static char output_buffer[512];
-    strncpy_s(output_buffer, output_path.c_str(), sizeof(output_buffer) - 1);
+    std::strncpy(output_buffer, output_path.c_str(), sizeof(output_buffer) - 1);
     output_buffer[sizeof(output_buffer) - 1] = '\0';
 
     if (ImGui::InputText("##output_path", output_buffer, sizeof(output_buffer))) {
@@ -540,7 +546,7 @@ void CausticGUI::renderCommandPreview() {
 
         // Use char buffer for ImGui compatibility
         static char cmd_buffer[2048];
-        strncpy_s(cmd_buffer, command_line_preview.c_str(), sizeof(cmd_buffer) - 1);
+        std::strncpy(cmd_buffer, command_line_preview.c_str(), sizeof(cmd_buffer) - 1);
         cmd_buffer[sizeof(cmd_buffer) - 1] = '\0';
 
         ImGui::InputTextMultiline("##command_preview", cmd_buffer, sizeof(cmd_buffer),

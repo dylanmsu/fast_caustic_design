@@ -30,9 +30,9 @@
 #include "normal_integration/mesh.h"
 
 // GUI support
-#ifdef _WIN32
+//#ifdef _WIN32
 extern int launchGUI();
-#endif
+//#endif
 
 using namespace Eigen;
 using namespace surface_mesh;

@@ -45,6 +45,8 @@ public:
      */
     void cleanup();
 
+    bool should_quit;
+
 private:
     // GUI state variables
     std::string target_image_path;
