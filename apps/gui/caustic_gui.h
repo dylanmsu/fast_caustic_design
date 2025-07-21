@@ -14,7 +14,10 @@
 #include <mutex>
 #include <functional>
 
+#ifndef _WIN32
 #include <GLFW/glfw3.h>
+#endif
+
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 

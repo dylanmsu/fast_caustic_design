@@ -96,6 +96,8 @@ add_library(tinyfiledialogs STATIC
     extern/libtinyfiledialogs/tinyfiledialogs.c
 )
 
+#find_package(glfw3 CONFIG REQUIRED)
+
 ## FILES ##########################################################################
 set(SURFACE_MESH_SRC_FILES
     otlib/surface_mesh/Surface_mesh.cpp
@@ -195,7 +197,7 @@ target_link_libraries(caustic_design
         ${ALLLIBS}
         Ceres::ceres
         imgui
-        glfw
+        #glfw
         OpenGL::GL
         tinyfiledialogs
 )

@@ -21,7 +21,7 @@ std::string FileDialog::openFile(const char* title, const char* filter, const ch
 #ifdef _WIN32
     return showDialog(true, title, filter, nullptr, defaultPath);
 #else
-    const char* filters[] = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.obj" };
+    const char* filters[] = { "*.png", "*.obj" };
     const char* result = tinyfd_openFileDialog(title, defaultPath, 5, filters, "Supported Files", 0);
     return result ? std::string(result) : "";
 #endif

@@ -12,11 +12,7 @@
 #include "../common/cli_options.h"
 
 #include "imgui.h"
-
-#include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-
-#include <GLFW/glfw3.h>
 
 #include <iostream>
 #include <sstream>
@@ -56,6 +52,9 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+#else
+#include "imgui_impl_glfw.h"
+#include <GLFW/glfw3.h>
 #endif
 
 // Forward declaration of processing function (to be implemented)
@@ -315,7 +314,7 @@ void CausticGUI::renderFileSelection() {
 
     // Use char buffer for ImGui compatibility
     static char output_buffer[512];
-    std::strncpy(output_buffer, output_path.c_str(), sizeof(output_buffer) - 1);
+    strncpy_s(output_buffer, output_path.c_str(), sizeof(output_buffer) - 1);
     output_buffer[sizeof(output_buffer) - 1] = '\0';
 
     if (ImGui::InputText("##output_path", output_buffer, sizeof(output_buffer))) {
@@ -573,7 +572,7 @@ void CausticGUI::renderCommandPreview() {
 
         // Use char buffer for ImGui compatibility
         static char cmd_buffer[2048];
-        std::strncpy(cmd_buffer, command_line_preview.c_str(), sizeof(cmd_buffer) - 1);
+        strncpy_s(cmd_buffer, command_line_preview.c_str(), sizeof(cmd_buffer) - 1);
         cmd_buffer[sizeof(cmd_buffer) - 1] = '\0';
 
         ImGui::InputTextMultiline("##command_preview", cmd_buffer, sizeof(cmd_buffer),
