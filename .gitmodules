@@ -5,3 +5,7 @@
 [submodule "extern/imgui"]
 	path = extern/imgui
 	url = https://github.com/ocornut/imgui.git
+
+[submodule "extern/libtinyfiledialogs"]
+	path = extern/libtinyfiledialogs
+	url = https://github.com/native-toolkit/libtinyfiledialogs.git

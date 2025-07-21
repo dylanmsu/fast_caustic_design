@@ -14,6 +14,10 @@
 #include <mutex>
 #include <functional>
 
+#include <GLFW/glfw3.h>
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 // Forward declarations
 struct CLIopts;
 
@@ -77,6 +81,8 @@ private:
     bool show_command_preview;
     bool auto_generate_filename;
     std::string command_line_preview;
+
+    GLFWwindow* window = nullptr;
 
     // Private methods
     void renderMainWindow();

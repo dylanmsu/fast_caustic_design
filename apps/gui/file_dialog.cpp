@@ -13,24 +13,27 @@
 #include <shlobj.h>
 #pragma comment(lib, "comdlg32.lib")
 #pragma comment(lib, "ole32.lib")
+#else
+#include "libtinyfiledialogs/tinyfiledialogs.h"
 #endif
 
 std::string FileDialog::openFile(const char* title, const char* filter, const char* defaultPath) {
 #ifdef _WIN32
     return showDialog(true, title, filter, nullptr, defaultPath);
 #else
-    std::cerr << "File dialogs not implemented for this platform" << std::endl;
-    return "";
+    const char* filters[] = { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.obj" };
+    const char* result = tinyfd_openFileDialog(title, defaultPath, 5, filters, "Supported Files", 0);
+    return result ? std::string(result) : "";
 #endif
 }
 
-std::string FileDialog::saveFile(const char* title, const char* filter, 
-                                const char* defaultExt, const char* defaultPath) {
+std::string FileDialog::saveFile(const char* title, const char* filter,
+                                 const char* defaultExt, const char* defaultPath) {
 #ifdef _WIN32
     return showDialog(false, title, filter, defaultExt, defaultPath);
 #else
-    std::cerr << "File dialogs not implemented for this platform" << std::endl;
-    return "";
+    const char* result = tinyfd_saveFileDialog(title, defaultPath, 0, nullptr, nullptr);
+    return result ? std::string(result) : "";
 #endif
 }
 

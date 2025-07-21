@@ -12,8 +12,11 @@
 #include "../common/cli_options.h"
 
 #include "imgui.h"
-#include "imgui_impl_win32.h"
+
+#include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+
+#include <GLFW/glfw3.h>
 
 #include <iostream>
 #include <sstream>
@@ -24,6 +27,7 @@
 #include <cmath>
 
 #ifdef _WIN32
+#include "imgui_impl_win32.h"
 #include <windows.h>
 #include <gl/GL.h>
 #pragma comment(lib, "opengl32.lib")
@@ -62,7 +66,7 @@ CausticGUI::CausticGUI()
     , source_image_path("")
     , output_path("./output.obj")
     , resolution(100)
-    , focal_length(1.0f)
+    , focal_length(1.5f)
     , thickness(0.2f)
     , mesh_width(1.0f)
     , refractive_index(1.55)
@@ -142,6 +146,29 @@ int CausticGUI::run() {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         SwapBuffers((HDC)hdc);
+    }
+#else
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // Render your GUI
+        renderMainWindow();
+
+        // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        glfwSwapBuffers(window);
     }
 #endif
 
@@ -976,9 +1003,49 @@ bool CausticGUI::initializeOpenGL() {
     return true;
 }
 #else
+
 bool CausticGUI::initializeOpenGL() {
-    std::cerr << "OpenGL initialization not implemented for this platform" << std::endl;
-    return false;
+    // Initialize GLFW
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        return false;
+    }
+
+    // Set OpenGL version (adjust if needed)
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0); // Or 3.3 for modern core profile
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+
+    // Create window
+    window = glfwCreateWindow(1200, 800, "Caustic Design Generator", nullptr, nullptr);
+    if (!window) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return false;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSwapInterval(1); // Enable vsync
+
+    // Setup Dear ImGui context
+    /*IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+
+    // Setup ImGui GLFW + OpenGL3 bindings
+    if (!ImGui_ImplGlfw_InitForOpenGL(window, true)) {
+        std::cerr << "Failed to initialize ImGui GLFW backend" << std::endl;
+        return false;
+    }
+
+    if (!ImGui_ImplOpenGL3_Init("#version 130")) {
+        std::cerr << "Failed to initialize ImGui OpenGL backend" << std::endl;
+        return false;
+    }*/
+
+    return true;
 }
 #endif
 
@@ -996,6 +1063,11 @@ bool CausticGUI::initializeImGui() {
 #ifdef _WIN32
     if (!ImGui_ImplWin32_Init(hwnd)) {
         std::cerr << "Failed to initialize ImGui Win32 backend" << std::endl;
+        return false;
+    }
+#else
+    if (!ImGui_ImplGlfw_InitForOpenGL(window, true)) {
+        std::cerr << "Failed to initialize ImGui GLFW backend" << std::endl;
         return false;
     }
 #endif

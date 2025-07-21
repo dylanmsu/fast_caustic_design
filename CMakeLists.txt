@@ -91,6 +91,11 @@ endif()
 target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 target_link_libraries(imgui PUBLIC OpenGL::GL)
 
+# Add tinyfiledialogs
+add_library(tinyfiledialogs STATIC
+    extern/libtinyfiledialogs/tinyfiledialogs.c
+)
+
 ## FILES ##########################################################################
 set(SURFACE_MESH_SRC_FILES
     otlib/surface_mesh/Surface_mesh.cpp
@@ -190,4 +195,7 @@ target_link_libraries(caustic_design
         ${ALLLIBS}
         Ceres::ceres
         imgui
+        glfw
+        OpenGL::GL
+        tinyfiledialogs
 )

@@ -839,12 +839,10 @@ int main(int argc, char** argv)
 {
   setlocale(LC_ALL,"C");
 
-  // If no arguments provided, launch GUI (Windows only for now)
-#ifdef _WIN32
+  // If no arguments provided, launch GUI
   if (argc == 1) {
     return launchGUI();
   }
-#endif
 
   // parse command line options
   InputParser input(argc, argv);
