@@ -52,9 +52,21 @@ public:
      */
     void cleanup();
 
+    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+
     bool should_quit;
 
+    float zoom;
+    float scrollDelta;
+
 private:
+    float sidebar_width;
+    bool first_frame;
+    bool parameter_changed;
+
+    float rotationX;
+    float rotationY;
+
     // GUI state variables
     std::string target_image_path;
     std::string source_image_path;
@@ -109,6 +121,8 @@ private:
     bool initializeOpenGL();
     bool initializeImGui();
     void handleWindowEvents();
+
+    void update3dPreview();
     
     // Window handle (Windows-specific)
 #ifdef _WIN32

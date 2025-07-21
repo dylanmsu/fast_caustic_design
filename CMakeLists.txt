@@ -202,5 +202,5 @@ target_link_libraries(caustic_design
 )
 
 if (NOT WIN32)
-    target_link_libraries(caustic_design PRIVATE glfw)
+    target_link_libraries(caustic_design PRIVATE glfw OpenGL::GLU)
 endif()

@@ -22,6 +22,8 @@
 #include <iomanip>
 #include <cmath>
 
+#include <algorithm>  // for std::clamp
+
 #ifdef _WIN32
 #include "imgui_impl_win32.h"
 #include <windows.h>
@@ -55,6 +57,7 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 #else
 #include "imgui_impl_glfw.h"
 #include <GLFW/glfw3.h>
+#include <GL/glu.h>
 #endif
 
 // Forward declaration of processing function (to be implemented)
@@ -72,6 +75,8 @@ CausticGUI::CausticGUI()
     , beta_method(1)  // 0=zero, 1=cj
     , max_iterations(1000)
     , threshold(1e-7)
+    , sidebar_width(300.0)
+    , first_frame(true)
     , max_ratio((std::numeric_limits<double>::max)())
     , verbose_level(1)
     , is_processing(false)
@@ -82,6 +87,10 @@ CausticGUI::CausticGUI()
     , show_command_preview(true)
     , auto_generate_filename(false)
     , should_quit(false)
+    , parameter_changed(false)
+    , rotationX(0.0f)
+    , rotationY(0.0f)
+    , zoom(5.0f)
 #ifdef _WIN32
     , hwnd(nullptr)
     , hdc(nullptr)
@@ -147,6 +156,47 @@ int CausticGUI::run() {
         SwapBuffers((HDC)hdc);
     }
 #else
+    // Add these as class member variables or at the top of your function:
+    float radius = 10.0f;
+    float theta = 0.0f;
+    float phi = M_PI/2.0f;
+    float target[3] = {0.0f, 0.0f, 0.0f};
+
+    // Mouse tracking variables
+    double lastMouseX = 0.0, lastMouseY = 0.0;
+    bool isOrbiting = false;
+    float sensitivity = 0.01f;
+    float zoomSpeed = 0.5f;
+    float minRadius = 1.0f;
+    float maxRadius = 50.0f;
+
+    // Add this in your window setup:
+    glfwFocusWindow(window);
+
+    // Enable lighting
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);  // Enable light source 0
+
+    // Set up a basic light
+    GLfloat light_position[] = {1.0f, 1.0f, 1.0f, 0.0f};  // Directional light
+    GLfloat light_diffuse[] = {1.0f, 1.0f, 1.0f, 1.0f};   // White light
+    GLfloat light_ambient[] = {0.2f, 0.2f, 0.2f, 1.0f};   // Dim ambient
+
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+
+    // Enable smooth shading
+    glShadeModel(GL_SMOOTH);
+
+    // Enable color material (so glColor affects material properties)
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);        // Cull back faces
+    glFrontFace(GL_CCW);        // Counter-clockwise winding = front face
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
@@ -158,14 +208,65 @@ int CausticGUI::run() {
         // Render your GUI
         renderMainWindow();
 
+        // Handle mouse input for camera control
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+        
+        if (!ImGui::GetIO().WantCaptureMouse) {
+            if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+                
+                if (!isOrbiting) {
+                    isOrbiting = true;
+                    lastMouseX = mouseX;
+                    lastMouseY = mouseY;
+                } else {
+                    float mouseDeltaX = mouseX - lastMouseX;
+                    float mouseDeltaY = mouseY - lastMouseY;
+                    
+                    theta += mouseDeltaX * sensitivity;
+                    phi += -mouseDeltaY * sensitivity;
+                    phi = std::clamp(phi, 0.1f, (float)(M_PI - 0.1f));
+                    
+                    lastMouseX = mouseX;
+                    lastMouseY = mouseY;
+                }
+            } else {
+                isOrbiting = false;
+            }
+        } else {
+            // Mouse is over ImGui, stop orbiting
+            isOrbiting = false;
+        }
+        
+        // Convert spherical to cartesian coordinates
+        float eye[3];
+        eye[0] = radius * sin(phi) * cos(theta);
+        eye[1] = radius * cos(phi);
+        eye[2] = radius * sin(phi) * sin(theta);
+
         // Rendering
         ImGui::Render();
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
         glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        // Set up projection matrix
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        // Adjust these values based on your needs
+        gluPerspective(45.0f, (float)display_w / (float)display_h, 0.1f, 100.0f);
+
+        // Switch back to modelview for the camera
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        gluLookAt(eye[0], eye[1], eye[2], 
+                target[0], target[1], target[2], 
+                0.0f, 1.0f, 0.0f);
+        
+        update3dPreview();
 
         glfwSwapBuffers(window);
     }
@@ -176,45 +277,29 @@ int CausticGUI::run() {
 }
 
 void CausticGUI::renderMainWindow() {
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+    ImGuiWindowFlags sidebar_flags = ImGuiWindowFlags_NoCollapse;
 
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                                   ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar |
-                                   ImGuiWindowFlags_MenuBar;
+    // Sidebar width and full window height
+    ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 
-    if (ImGui::Begin("Caustic Design Generator", nullptr, window_flags)) {
-        // Menu bar
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("File")) {
-                if (ImGui::MenuItem("Reset to Defaults")) {
-                    resetToDefaults();
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem("Exit")) {
-                    #ifdef _WIN32
-                        PostQuitMessage(0);
-                    #else
-                        // For Linux: set a flag to exit main loop or close the window
-                        should_quit = true;
-                    #endif
-                }
-                ImGui::EndMenu();
-            }
-            if (ImGui::BeginMenu("View")) {
-                ImGui::MenuItem("Advanced Options", nullptr, &show_advanced_options);
-                ImGui::MenuItem("Command Preview", nullptr, &show_command_preview);
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
+    if (first_frame) {
+        ImGui::SetNextWindowSize(ImVec2(sidebar_width, ImGui::GetIO().DisplaySize.y));
+        first_frame = false;
+    }
+
+    if (ImGui::Begin("Sidebar", nullptr, sidebar_flags)) {
+        if (ImGui::Button("Reset to Defaults")) {
+            resetToDefaults();
         }
 
-        // Main content
-        renderFileSelection();
+        ImGui::Checkbox("Advanced Options", &show_advanced_options);
+        ImGui::Checkbox("Command Preview", &show_command_preview);
         ImGui::Separator();
+
+        renderFileSelection();
         renderParameters();
 
-        if (show_advanced_options) {
+        /*if (show_advanced_options) {
             ImGui::Separator();
             renderAdvancedOptions();
         }
@@ -222,7 +307,7 @@ void CausticGUI::renderMainWindow() {
         if (show_command_preview) {
             ImGui::Separator();
             renderCommandPreview();
-        }
+        }*/
 
         ImGui::Separator();
         renderProcessingStatus();
@@ -358,6 +443,7 @@ void CausticGUI::renderParameters() {
     // Resolution slider
     if (ImGui::SliderInt("Resolution", &resolution, 10, 500)) {
         updateCommandLinePreview();
+        update3dPreview();
     }
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Mesh resolution for the caustic surface\nHigher values = more detail but slower computation");
@@ -366,6 +452,7 @@ void CausticGUI::renderParameters() {
     // Focal length
     if (ImGui::SliderFloat("Focal Length", &focal_length, 0.1f, 10.0f, "%.2f")) {
         updateCommandLinePreview();
+        update3dPreview();
     }
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Distance from lens to projection plane");
@@ -374,6 +461,7 @@ void CausticGUI::renderParameters() {
     // Thickness
     if (ImGui::SliderFloat("Thickness", &thickness, 0.01f, 1.0f, "%.3f")) {
         updateCommandLinePreview();
+        update3dPreview();
     }
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Physical thickness of the lens");
@@ -382,6 +470,7 @@ void CausticGUI::renderParameters() {
     // Mesh width
     if (ImGui::SliderFloat("Mesh Width", &mesh_width, 0.1f, 5.0f, "%.2f")) {
         updateCommandLinePreview();
+        update3dPreview();
     }
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Physical width and height of the lens");
@@ -634,6 +723,65 @@ void CausticGUI::renderGenerateButton() {
                              "Processing in progress...");
         }
     }
+}
+
+void CausticGUI::update3dPreview() {
+    float x = thickness / 2.0f;
+    float y = mesh_width / 2.0f;
+    float z = mesh_width / 2.0f;
+    
+    GLfloat vertices[] = {
+        // Front face
+        -x, -y, z, x, -y, z, x, y, z, -x, y, z,
+        // Back face
+        -x, -y, -z, -x, y, -z, x, y, -z, x, -y, -z,
+        // Left face
+        -x, -y, -z, -x, -y, z, -x, y, z, -x, y, -z,
+        // Right face
+        x, -y, -z, x, y, -z, x, y, z, x, -y, z,
+        // Top face
+        -x, y, -z, -x, y, z, x, y, z, x, y, -z,
+        // Bottom face
+        -x, -y, -z, x, -y, -z, x, -y, z, -x, -y, z,
+    };
+    
+    // Add normals for each face
+    GLfloat normals[] = {
+        // Front face (z+)
+        0, 0, 1,  0, 0, 1,  0, 0, 1,  0, 0, 1,
+        // Back face (z-)
+        0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1,
+        // Left face (x-)
+        -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0,
+        // Right face (x+)
+        1, 0, 0,  1, 0, 0,  1, 0, 0,  1, 0, 0,
+        // Top face (y+)
+        0, 1, 0,  0, 1, 0,  0, 1, 0,  0, 1, 0,
+        // Bottom face (y-)
+        0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0,
+    };
+    
+    GLuint indices[] = {
+        0, 1, 2, 2, 3, 0,       // Front
+        4, 5, 6, 6, 7, 4,       // Back
+        8, 9,10, 10,11, 8,      // Left
+        12,13,14, 14,15,12,     // Right
+        16,17,18, 18,19,16,     // Top
+        20,21,22, 22,23,20      // Bottom
+    };
+    
+    // Draw cube with normals
+    glColor3f(0.8f, 0.8f, 0.8f);  // Light gray color
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    
+    glVertexPointer(3, GL_FLOAT, 0, vertices);
+    glNormalPointer(GL_FLOAT, 0, normals);
+    
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, indices);
+    
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
 }
 
 void CausticGUI::updateCommandLinePreview() {
