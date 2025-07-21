@@ -197,7 +197,10 @@ target_link_libraries(caustic_design
         ${ALLLIBS}
         Ceres::ceres
         imgui
-        #glfw
         OpenGL::GL
         tinyfiledialogs
 )
+
+if (NOT WIN32)
+    target_link_libraries(caustic_design PRIVATE glfw)
+endif()
