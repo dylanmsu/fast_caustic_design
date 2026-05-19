@@ -76,33 +76,10 @@ The usage of optimal transport is not just to reduce surface variations. It is a
 Once we have the transport map, the next step is to figure out the exact geometry of the lens surface. For each vertex on the surface, we use the OT map to set the x and y direction of the outgoing ray. The z-direction is chosen based on the focal length.
 
 These rays define how we want the surface to bend the light. Using inverse Snell’s law, we compute the target surface normals needed to steer the rays correctly. Finally, we use a solver (Ceres) to adjust the vertex positions on the lens surface so that the computed normals match the target ones. This is called normal integration and can be thought of as approximating the inverse gradient of the vertex normals.
-## Limitation
-Currently, the code produces only square lenses.
-
-The limitation stems from the fact that the OTMap solver is designed to compute the transport map from an image to a uniform distribution on the square domain (denoted as T(u->1)). This means we can only transport light from a square lens surface to an image.
-
-To support arbitrary lens shapes like for example a circle, we need to tell the optimal transport solver to start from a circle and transport to an image. Here the circle is the source distribution (v), and the image is the target distribution (u).
-
-The method that OTMap uses to compute a transport map from any source distribution to any target distribution is by a heuristic. They first move mass from a source distribution to a uniform distribution on the square domain (move mass along T(v->1)). Then transport the new mass from this uniform distribution on the square domain to the target distribution (moves new mass along T(1->u)). This is called composition, see equation 10 in the paper.
-
-This approach is an estimation and does not yield a true optimal transport map. This estimation inadvertently introduces a small curl component into the mapping, so it is no longer purely the gradient of a potential.
-
-Because deriving a heightmap for a lens relies on normal integration, which only utilizes the curl-free component of the mapping, the presence of any curl results in distortions in the caustic lens.
-
-One solution to this issue would be to solve the transport map T(u->1) on a custom domain (think rounded rectangle, circle, ellipse, etc). This requires a rewrite because the current OTMap solver relies on a square domain with quad faces. You could use a triangular mesh as the domain and apply finite element analysis to compute the discrete differential operators. Namely the laplacian and the gradient. The laplacian uses a special stencil, and the gradient is calculated on the dual vertices, so this would not be trivial on a triangle mesh.
-
-A second solution that may be more approachable is modifying the right hand side of equation 11 in the OTMap paper by replacing the cell integral of u(x) with the cell integral of u(x) / v(T(x)). This should solve the full Monge-Ampère equation and yield a true L2 optimal transport map T(u->v). The catch is that this makes the problem highly nonlinear and non-convex, thus slower or even no convergence in some cases.
-
-Some other potential transport solving strategies that solve a single potential and thus guaranteed to not cause distortions are:
-- A method that approximates the monge ampere operator by a monotone descretization. A wide stencil scheme for stable and monotone newton iterations.
-- A method that reformulates the monge ampere equation to a scheme that is solved by fixed point updates of a potential. The potential is updated by the solution of a poisson equation. (FFT-OT)
-- A method that alternates between two potential functions related by a convex dual transform (c-transform), performing gradient-based updates in each space to approximate an optimal transport mapping between two distributions. (BFM)
 
 ## License
 
-The core of the transport solver is provided under the [GNU Public License v3](https://www.gnu.org/licenses/gpl-3.0.html).
-
-Utilities and applications are released under the [Mozilla Public License 2](https://www.mozilla.org/en-US/MPL/2.0/).
+The core of the transport solver and caustic design utility is provided under the [GNU Public License v3](https://www.gnu.org/licenses/gpl-3.0.html).
 
 ## References
 
