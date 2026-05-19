@@ -1,5 +1,9 @@
 # Fast caustic design: A fast high contrast freeform optics designer based on OTMap
 
+## Contact
+
+This repository is an early open source prototype with significant limitations. A fully reworked commercial version supporting generic shapes and nearby point light sources is in active development. For custom pieces or professional enquiries, visit [dyopton.be](https://dyopton.be/) or contact dylan@dyopton.be.
+
 ## Examples
 
 #### Ring:
